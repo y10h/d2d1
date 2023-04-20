@@ -1,0 +1,102 @@
+[project]
+name = "d2d1"
+description = "Drive2 to Day One importer"
+authors = [
+  { name="Yury Yurevich", email="github@y10h.com" },
+]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+dependencies=[]
+dynamic = ["version"]
+
+[project.urls]
+"Homepage" = "https://github.com/y10h/d2d1"
+"Bug Tracker" = "https://github.com/y10h/d2d1/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/d2d1/__about__.py"
+
+[tool.hatch.envs.default]
+dependencies = [
+  "coverage[toml]>=6.5",
+  "pytest",
+]
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "coverage run -m pytest {args:tests}"
+cov-report = [
+  "- coverage combine",
+  "coverage report",
+]
+cov = [
+  "test-cov",
+  "cov-report",
+]
+
+[[tool.hatch.envs.all.matrix]]
+python = ["3.9", "3.10", "3.11"]
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+  "black>=23.1.0",
+  "mypy>=1.0.0",
+  "ruff>=0.0.243",
+]
+[tool.hatch.envs.lint.scripts]
+typing = "mypy --install-types --non-interactive {args:src/d2d1 tests}"
+style = [
+  "ruff {args:.}",
+  "black --check --diff {args:.}",
+]
+fmt = [
+  "black {args:.}",
+  "ruff --fix {args:.}",
+  "style",
+]
+all = [
+  "style",
+  "typing",
+]
+
+[tool.black]
+target-version = ["py39"]
+line-length = 88
+skip-string-normalization = true
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+
+[tool.ruff.isort]
+known-first-party = ["d2d1"]
+
+[tool.ruff.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.coverage.run]
+source_pkgs = ["d2d1", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/d2d1/__about__.py",
+]
+
+[tool.coverage.paths]
+d2d1 = ["src/d2d1", "*/d2d1/src/d2d1"]
+tests = ["tests", "*/d2d1/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+]
