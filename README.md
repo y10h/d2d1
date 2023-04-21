@@ -1,5 +1,5 @@
-# d2d1
-Drive2 → Day One importer
+# r2d2
+Download Drive2 blog and export it in Day One format.
 
 ### First steps
 

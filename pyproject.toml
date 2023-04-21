@@ -1,5 +1,5 @@
 [project]
-name = "d2d1"
+name = "r2d2"
 description = "Drive2 to Day One importer"
 authors = [
   { name="Yury Yurevich", email="github@y10h.com" },
@@ -15,15 +15,15 @@ dependencies=[]
 dynamic = ["version"]
 
 [project.urls]
-"Homepage" = "https://github.com/y10h/d2d1"
-"Bug Tracker" = "https://github.com/y10h/d2d1/issues"
+"Homepage" = "https://github.com/y10h/r2d2"
+"Bug Tracker" = "https://github.com/y10h/r2d2/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/d2d1/__about__.py"
+path = "src/r2d2/__about__.py"
 
 [tool.hatch.envs.default]
 dependencies = [
@@ -53,7 +53,7 @@ dependencies = [
   "ruff>=0.0.243",
 ]
 [tool.hatch.envs.lint.scripts]
-typing = "mypy --install-types --non-interactive {args:src/d2d1 tests}"
+typing = "mypy --install-types --non-interactive {args:src/r2d2 tests}"
 style = [
   "ruff {args:.}",
   "black --check --diff {args:.}",
@@ -78,22 +78,22 @@ target-version = "py39"
 line-length = 88
 
 [tool.ruff.isort]
-known-first-party = ["d2d1"]
+known-first-party = ["r2d2"]
 
 [tool.ruff.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [tool.coverage.run]
-source_pkgs = ["d2d1", "tests"]
+source_pkgs = ["r2d2", "tests"]
 branch = true
 parallel = true
 omit = [
-  "src/d2d1/__about__.py",
+  "src/r2d2/__about__.py",
 ]
 
 [tool.coverage.paths]
-d2d1 = ["src/d2d1", "*/d2d1/src/d2d1"]
-tests = ["tests", "*/d2d1/tests"]
+r2d2 = ["src/r2d2", "*/r2d2/src/r2d2"]
+tests = ["tests", "*/r2d2/tests"]
 
 [tool.coverage.report]
 exclude_lines = [
