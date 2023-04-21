@@ -11,7 +11,9 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
 ]
-dependencies=[]
+dependencies=[
+  "Scrapy>=2.8.0, <2.9"
+]
 dynamic = ["version"]
 
 [project.urls]
@@ -41,6 +43,7 @@ cov = [
   "test-cov",
   "cov-report",
 ]
+scrap = "scrapy crawl d2rnd {args}"
 
 [[tool.hatch.envs.all.matrix]]
 python = ["3.9", "3.10", "3.11"]

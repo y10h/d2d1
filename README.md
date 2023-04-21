@@ -12,3 +12,9 @@ hatch env create
 ```
 hatch run test
 ```
+
+### Run scraper
+
+```
+hatch run scrap -O d2.jsonl -a username=amazing
+```
