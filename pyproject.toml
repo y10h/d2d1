@@ -63,7 +63,6 @@ style = [
 ]
 fmt = [
   "black {args:.}",
-  "ruff --fix {args:.}",
   "style",
 ]
 all = [
