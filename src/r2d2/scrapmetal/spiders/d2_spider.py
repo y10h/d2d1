@@ -6,11 +6,13 @@ import scrapy
 PATTERN_CAR = re.compile(r"/r/[a-z0-9_]+/[a-z0-9_]+/[\d]+/$")
 PATTERN_CAR_LOGBOOK = re.compile(r"/r/[a-z0-9_]+/[a-z0-9_]+/[\d]+/logbook")
 PATTERN_CAR_POST = re.compile(r"/l/[0-9]+/")
+PATTERN_BLOG_POST = re.compile(r"/b/[0-9]+/")
 PATTERN_PHOTO_ALBUM = re.compile("/s/a/[a-zA-Z0-9]+")
 PATTERN_PHOTO_POST = re.compile("/s/[a-zA-Z0-9]+")
 PATTERN_PHOTO_IMAGE = re.compile("https://a.d-cd.net/[a-zA-Z0-9_-]+.jpg")
 
 KIND_USER_PROFILE = "UserProfile"
+KIND_USER_JOURNAL = "UserJournal"
 KIND_CAR = "Car"
 KIND_CAR_LOGBOOK = "CarLogbook"
 KIND_PHOTO_ALBUM = "PhotoAlbum"
@@ -49,6 +51,7 @@ class D2ExperimentalSpider(scrapy.Spider):
         PATTERN_CAR_LOGBOOK: "parse_logbook",
         PATTERN_PHOTO_POST: "parse_photo_post",
         PATTERN_CAR_POST: "parse_blog_post",
+        PATTERN_BLOG_POST: "parse_blog_post",
     }
 
     def start_requests(self):
@@ -103,11 +106,37 @@ class D2ExperimentalSpider(scrapy.Spider):
         }
 
     def parse_user_profile(self, response):
+        meta = {
+            META_KEY_ORIGIN: response.meta.get(META_KEY_ORIGIN) or response.url,
+        }
         yield from self.follow_known_links(
             links=response.css("a.u-link-area::attr(href)").getall(),
             patterns=(PATTERN_CAR, PATTERN_PHOTO_ALBUM),
             page_name="user profile",
             response=response,
+        )
+        # If the page origin is the same as current page, then it's the main
+        # logbook url and not one of its pages, thus we should return the payload.
+        if meta[META_KEY_ORIGIN] == response.url:
+            yield {
+                KEY_KIND: KIND_USER_JOURNAL,
+                KEY_ORIGIN: response.meta.get(META_KEY_ORIGIN),
+                KEY_URL: response.url,
+            }
+        next_page = response.xpath(
+            "//a[has-class('c-pager__link')][@rel='next']/@href"
+        ).get()
+        if next_page:
+            next_url = response.urljoin(next_page)
+            yield scrapy.Request(next_url, callback=self.parse_user_profile, meta=meta)
+        yield from self.follow_known_links(
+            links=response.css(
+                "div.c-post-preview__title a.c-link::attr('href')"
+            ).getall(),
+            patterns=(PATTERN_BLOG_POST,),
+            page_name="user journal",
+            response=response,
+            meta=meta,
         )
 
     def parse_car(self, response):
