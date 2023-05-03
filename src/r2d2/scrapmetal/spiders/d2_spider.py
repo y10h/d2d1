@@ -1,4 +1,5 @@
 import re
+import urllib.parse
 
 import scrapy
 
@@ -48,13 +49,24 @@ class D2ExperimentalSpider(scrapy.Spider):
 
     def start_requests(self):
         username = getattr(self, "username", None)
-        if not username:
+        starter = getattr(self, "starter", None)
+        if not username and not starter:
             raise ValueError(
-                "username is missing, please pass it with "
+                "Starting page is missing. "
+                "Either start from url as `scrapy -a starter=<url>` or "
+                "with a username as "
                 " `scrapy -a username=<drive2username>`"
             )
-        url = USER_PROFILE_TEMPLATE.format(username=username)
-        yield scrapy.Request(url=url, callback=self.parse_user_profile)
+        if username:
+            url = USER_PROFILE_TEMPLATE.format(username=username)
+            yield scrapy.Request(url=url, callback=self.parse_user_profile)
+        if starter:
+            starter_path = urllib.parse.urlparse(starter).path
+            for pattern in self.PARSER_MAP.keys():
+                if pattern.match(starter_path):
+                    parser_name = self.PARSER_MAP[pattern]
+                    callback = getattr(self, parser_name)
+                    yield scrapy.Request(url=starter, callback=callback)
 
     def follow_known_links(self, links, patterns, response, meta={}, page_name="N/A"):
         for next_link in links:
@@ -166,7 +178,7 @@ class D2ExperimentalSpider(scrapy.Spider):
                 f"Photo url {photo_url} from {response.url} is not recognized "
                 "as an url to a photo"
             )
-        elif username != getattr(self, "username"):
+        elif getattr(self, "username", None) and username != getattr(self, "username"):
             self.log(
                 "It looks like spider accidentally crawls a photo which "
                 f"isn't owned by a user: photo post {response.url} its user {username}."
