@@ -39,6 +39,9 @@ KEY_PHOTO_URL = "photo_url"
 KEY_CONTENT = "content"
 KEY_TAG = "tag"
 
+# Special fields which have specific meaning to Scrapy.
+SCRAPY_FILE_URLS = "file_urls"
+
 USER_PROFILE_TEMPLATE = "https://www.drive2.ru/users/{username}/"
 
 
@@ -103,6 +106,7 @@ class D2ExperimentalSpider(scrapy.Spider):
             KEY_URL: url,
             KEY_PARENT: parent,
             KEY_ORIGIN: origin,
+            SCRAPY_FILE_URLS: [url],
         }
 
     def parse_user_profile(self, response):
@@ -228,6 +232,7 @@ class D2ExperimentalSpider(scrapy.Spider):
             )
         else:
             yield {
+                KEY_URL: response.url,
                 KEY_KIND: KIND_PHOTO_POST,
                 KEY_DESCRIPTION: photo_description,
                 KEY_PUBLISHED: publish_date,
@@ -278,6 +283,7 @@ class D2ExperimentalSpider(scrapy.Spider):
         post_content = response.xpath("//div[@itemprop='articleBody']").get()
         post_tag = response.css("span.c-post-meta__item a.c-link::text").get()
         yield {
+            KEY_URL: response.url,
             KEY_KIND: KIND_BLOG_POST,
             KEY_TITLE: title,
             KEY_PUBLISHED: publish_date,

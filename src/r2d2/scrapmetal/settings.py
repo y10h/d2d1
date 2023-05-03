@@ -62,9 +62,12 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 1
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#    "scrapmetal.pipelines.ScrapmetalPipeline": 300,
-# }
+ITEM_PIPELINES = {
+    "scrapy.pipelines.files.FilesPipeline": 1,
+    "r2d2.scrapmetal.pipelines.ScrapmetalPipeline": 300,
+}
+
+FILES_STORE = 'd2images'
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
