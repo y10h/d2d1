@@ -100,7 +100,6 @@ class D2ExperimentalSpider(scrapy.Spider):
                     )
 
     def download_photo(self, url, parent=None, origin=None):
-        # We don't download photos yet.
         yield {
             KEY_KIND: KIND_PHOTO,
             KEY_URL: url,
@@ -164,13 +163,9 @@ class D2ExperimentalSpider(scrapy.Spider):
         car_photos = response.css("a.c-lightbox-anchor::attr(href)").getall()
 
         for car_photo_url in car_photos:
-            # We don't download photos yet.
-            yield {
-                KEY_KIND: KIND_PHOTO,
-                KEY_URL: car_photo_url,
-                KEY_PARENT: meta[META_KEY_PARENT],
-                KEY_ORIGIN: response.url,
-            }
+            yield from self.download_photo(
+                url=car_photo_url, parent=meta[META_KEY_PARENT], origin=response.url
+            )
         yield from self.follow_known_links(
             links=response.css("h3 a.c-link::attr(href)").getall(),
             patterns=(PATTERN_CAR_LOGBOOK, PATTERN_PHOTO_ALBUM),
