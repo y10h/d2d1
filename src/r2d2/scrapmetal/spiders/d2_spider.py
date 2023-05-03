@@ -39,6 +39,13 @@ USER_PROFILE_TEMPLATE = "https://www.drive2.ru/users/{username}/"
 class D2ExperimentalSpider(scrapy.Spider):
     name = "d2rnd"
 
+    PARSER_MAP = {
+        PATTERN_CAR: "parse_car",
+        PATTERN_PHOTO_ALBUM: "parse_photo_album",
+        PATTERN_CAR_LOGBOOK: "parse_logbook",
+        PATTERN_PHOTO_POST: "parse_photo_post",
+    }
+
     def start_requests(self):
         username = getattr(self, "username", None)
         if not username:
@@ -49,23 +56,33 @@ class D2ExperimentalSpider(scrapy.Spider):
         url = USER_PROFILE_TEMPLATE.format(username=username)
         yield scrapy.Request(url=url, callback=self.parse_user_profile)
 
-    def parse_user_profile(self, response):
-        next_links = response.css("a.u-link-area::attr(href)").getall()
-        for next_link in next_links:
+    def follow_known_links(self, links, patterns, response, meta={}, page_name="N/A"):
+        for next_link in links:
             if next_link:
-                if PATTERN_CAR.match(next_link):
-                    callback = self.parse_car
-                elif PATTERN_PHOTO_ALBUM.match(next_link):
-                    callback = self.parse_photo_album
-                else:
+                link_parsed = False
+                for pattern in patterns:
+                    if pattern.match(next_link):
+                        link_parsed = True
+                        parser_name = self.PARSER_MAP[pattern]
+                        callback = getattr(self, parser_name)
+                        self.log(
+                            f"Found next link {next_link} -- parser is {parser_name}."
+                        )
+                        next_url = response.urljoin(next_link)
+                        yield scrapy.Request(next_url, callback=callback, meta=meta)
+                if not link_parsed:
                     self.log(
-                        f"Found a link {next_link} from the user profile "
-                        "but don't know what to do with it"
+                        f"Found a link {next_link} from the {page_name} "
+                        f" ({response.url}) but don't know what to do with it"
                     )
-                    continue
-                next_url = response.urljoin(next_link)
-                self.log(f"Found next link {next_link} -- callback is {callback}.")
-                yield scrapy.Request(next_url, callback=callback)
+
+    def parse_user_profile(self, response):
+        yield from self.follow_known_links(
+            links=response.css("a.u-link-area::attr(href)").getall(),
+            patterns=(PATTERN_CAR, PATTERN_PHOTO_ALBUM),
+            page_name="user profile",
+            response=response,
+        )
 
     def parse_car(self, response):
         meta = {
@@ -86,7 +103,7 @@ class D2ExperimentalSpider(scrapy.Spider):
             KEY_PUBLISHED: publish_date,
         }
         car_photos = response.css("a.c-lightbox-anchor::attr(href)").getall()
-        next_links = response.css("h3 a.c-link::attr(href)").getall()
+
         for car_photo_url in car_photos:
             # We don't download photos yet.
             yield {
@@ -95,21 +112,13 @@ class D2ExperimentalSpider(scrapy.Spider):
                 KEY_PARENT: meta[META_KEY_PARENT],
                 KEY_ORIGIN: response.url,
             }
-        for next_link in next_links:
-            if next_link:
-                if PATTERN_CAR_LOGBOOK.match(next_link):
-                    callback = self.parse_logbook
-                elif PATTERN_PHOTO_ALBUM.match(next_link):
-                    callback = self.parse_photo_album
-                else:
-                    self.log(
-                        f"Found a link {next_link} from the car page "
-                        f"{response.url} but don't know what to do with it"
-                    )
-                    continue
-                next_url = response.urljoin(next_link)
-                self.log(f"Found next link {next_link} -- callback is {callback}.")
-                yield scrapy.Request(next_url, callback=callback, meta=meta)
+        yield from self.follow_known_links(
+            links=response.css("h3 a.c-link::attr(href)").getall(),
+            patterns=(PATTERN_CAR_LOGBOOK, PATTERN_PHOTO_ALBUM),
+            page_name="car page",
+            response=response,
+            meta=meta,
+        )
 
     def parse_photo_album(self, response):
         meta = {
@@ -126,19 +135,19 @@ class D2ExperimentalSpider(scrapy.Spider):
                 KEY_URL: response.url,
                 KEY_PARENT: meta.get(META_KEY_PARENT),
             }
-        photo_posts = response.css("div.c-snaps-preview a::attr('href')").getall()
-        for photo_post in photo_posts:
-            if photo_post:
-                if PATTERN_PHOTO_POST.match(photo_post):
-                    yield scrapy.Request(
-                        photo_post, callback=self.parse_photo_post, meta=meta
-                    )
         next_page = response.xpath(
             "//a[has-class('c-pager__link')][@rel='next']/@href"
         ).get()
         if next_page:
             next_url = response.urljoin(next_page)
             yield scrapy.Request(next_url, callback=self.parse_photo_album, meta=meta)
+        yield from self.follow_known_links(
+            links=response.css("div.c-snaps-preview a::attr('href')").getall(),
+            patterns=(PATTERN_PHOTO_POST,),
+            page_name="photo album",
+            response=response,
+            meta=meta,
+        )
 
     def parse_photo_post(self, response):
         username = (
