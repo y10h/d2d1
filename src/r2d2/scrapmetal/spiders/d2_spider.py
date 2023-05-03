@@ -3,8 +3,9 @@ import urllib.parse
 
 import scrapy
 
-PATTERN_CAR = re.compile(r"/r/[a-z0-9_]+/[a-z0-9_]+/[\d]+/")
+PATTERN_CAR = re.compile(r"/r/[a-z0-9_]+/[a-z0-9_]+/[\d]+/$")
 PATTERN_CAR_LOGBOOK = re.compile(r"/r/[a-z0-9_]+/[a-z0-9_]+/[\d]+/logbook")
+PATTERN_CAR_POST = re.compile(r"/l/[0-9]+/")
 PATTERN_PHOTO_ALBUM = re.compile("/s/a/[a-zA-Z0-9]+")
 PATTERN_PHOTO_POST = re.compile("/s/[a-zA-Z0-9]+")
 PATTERN_PHOTO_IMAGE = re.compile("https://a.d-cd.net/[a-zA-Z0-9_-]+.jpg")
@@ -33,6 +34,8 @@ KEY_PUBLISHED = "published"
 KEY_ORIGIN = "origin"
 KEY_PARENT = "parent"
 KEY_PHOTO_URL = "photo_url"
+KEY_CONTENT = "content"
+KEY_TAG = "tag"
 
 USER_PROFILE_TEMPLATE = "https://www.drive2.ru/users/{username}/"
 
@@ -45,9 +48,11 @@ class D2ExperimentalSpider(scrapy.Spider):
         PATTERN_PHOTO_ALBUM: "parse_photo_album",
         PATTERN_CAR_LOGBOOK: "parse_logbook",
         PATTERN_PHOTO_POST: "parse_photo_post",
+        PATTERN_CAR_POST: "parse_blog_post",
     }
 
     def start_requests(self):
+        """Scrapy calls the method automatically at the start of crawling."""
         username = getattr(self, "username", None)
         starter = getattr(self, "starter", None)
         if not username and not starter:
@@ -87,6 +92,15 @@ class D2ExperimentalSpider(scrapy.Spider):
                         f"Found a link {next_link} from the {page_name} "
                         f" ({response.url}) but don't know what to do with it"
                     )
+
+    def download_photo(self, url, parent=None, origin=None):
+        # We don't download photos yet.
+        yield {
+            KEY_KIND: KIND_PHOTO,
+            KEY_URL: url,
+            KEY_PARENT: parent,
+            KEY_ORIGIN: origin,
+        }
 
     def parse_user_profile(self, response):
         yield from self.follow_known_links(
@@ -191,19 +205,62 @@ class D2ExperimentalSpider(scrapy.Spider):
                 KEY_PARENT: response.meta.get(META_KEY_PARENT),
                 KEY_ORIGIN: response.meta.get(META_KEY_ORIGIN),
             }
-            # We don't download photos yet.
-            yield {
-                KEY_KIND: KIND_PHOTO,
-                KEY_URL: photo_url,
-                KEY_PARENT: response.meta.get(META_KEY_PARENT),
-                KEY_ORIGIN: response.url,
-            }
+            yield from self.download_photo(
+                url=photo_url,
+                parent=response.meta.get(META_KEY_PARENT),
+                origin=response.url,
+            )
 
     def parse_logbook(self, response):
-        # Does not support parsing yet.
-
-        yield {
-            KEY_KIND: KIND_CAR_LOGBOOK,
-            KEY_PARENT: response.meta.get(META_KEY_PARENT),
-            KEY_URL: response.url,
+        meta = {
+            META_KEY_ORIGIN: response.meta.get(META_KEY_ORIGIN) or response.url,
+            META_KEY_PARENT: response.meta.get(META_KEY_PARENT),
         }
+        # If the page origin is the same as current page, then it's the main
+        # logbook url and not one of its pages, thus we should return the payload.
+        if meta[META_KEY_ORIGIN] == response.url:
+            yield {
+                KEY_KIND: KIND_CAR_LOGBOOK,
+                KEY_ORIGIN: response.meta.get(META_KEY_ORIGIN),
+                KEY_PARENT: response.meta.get(META_KEY_PARENT),
+                KEY_URL: response.url,
+            }
+        next_page = response.xpath(
+            "//a[has-class('c-pager__link')][@rel='next']/@href"
+        ).get()
+        if next_page:
+            next_url = response.urljoin(next_page)
+            yield scrapy.Request(next_url, callback=self.parse_logbook, meta=meta)
+        yield from self.follow_known_links(
+            links=response.css(
+                "div.c-post-preview__title a.c-link::attr('href')"
+            ).getall(),
+            patterns=(PATTERN_CAR_POST,),
+            page_name="car logbook",
+            response=response,
+            meta=meta,
+        )
+
+    def parse_blog_post(self, response):
+        title = response.css("h1.x-title::text").get().strip()
+        publish_date = response.xpath(
+            "//meta[@property='article:published_time']/@content"
+        ).get()
+        post_content = response.xpath("//div[@itemprop='articleBody']").get()
+        post_tag = response.css("span.c-post-meta__item a.c-link::text").get()
+        yield {
+            KEY_KIND: KIND_BLOG_POST,
+            KEY_TITLE: title,
+            KEY_PUBLISHED: publish_date,
+            KEY_PARENT: response.meta.get(META_KEY_PARENT),
+            KEY_ORIGIN: response.meta.get(META_KEY_ORIGIN),
+            KEY_CONTENT: post_content,
+            KEY_TAG: post_tag,
+        }
+        image_links = response.css("div.c-post__pic img::attr('src')").getall()
+        for image_link in image_links:
+            yield from self.download_photo(
+                url=image_link,
+                parent=response.meta.get(META_KEY_PARENT),
+                origin=response.url,
+            )
